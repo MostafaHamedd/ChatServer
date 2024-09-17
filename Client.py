@@ -10,12 +10,11 @@ def clear_console():
 
 def display_messages(messages):
     """Display all chat messages and keep the input prompt."""
-    clear_console()  # Clear the screen to avoid old messages lingering
-    if messages:
-        for message in messages:
-            sys.stdout.write(f"{message}\n")
+    clear_console()  # Clear the screen before displaying messages
+    for message in messages:
+        sys.stdout.write(f"{message}\n")
     sys.stdout.write('>> ')
-    sys.stdout.flush()  # Ensure the prompt is shown right after the messages
+    sys.stdout.flush()
 
 def receive_messages(sock, messages):
     """Receive messages from the server and display them."""
@@ -23,8 +22,9 @@ def receive_messages(sock, messages):
         try:
             data = sock.recv(1024).decode('utf-8')
             if data:
-                messages.append(data)
-                # Display all messages including the new one
+                # Only append if the message is new
+                if data not in messages:
+                    messages.append(data)
                 display_messages(messages)
             else:
                 break
@@ -53,9 +53,6 @@ def client(host, port, username):
     # Start thread to receive messages from the server
     threading.Thread(target=receive_messages, args=(client_socket, messages), daemon=True).start()
 
-    # Display initial prompt
-    display_messages(messages)
-
     while True:
         try:
             # Get user input
@@ -63,9 +60,6 @@ def client(host, port, username):
             if message:
                 # Send the message to the server
                 client_socket.sendall(f"MSG {message}".encode('utf-8'))
-                # Add and display the sent message locally
-                messages.append(f"{username}: {message}")
-                display_messages(messages)
         except KeyboardInterrupt:
             print("\nClient shutting down.")
             client_socket.sendall(f"DISCONNECT {username}".encode('utf-8'))

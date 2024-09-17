@@ -89,20 +89,59 @@ def notify_clients(message):
     for client, _ in clients:
         client.sendall(message.encode('utf-8'))
 
+def fetch_last_20_messages():
+    """Fetch the last 20 messages from the database."""
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+    SELECT username, message, timestamp
+    FROM Messages
+    ORDER BY timestamp DESC
+    LIMIT 20
+    ''')
+    messages = cursor.fetchall()
+    conn.close()
+    return messages[::-1]  # Reverse to show them in the correct order (oldest first)
+
+def send_last_20_messages(client_socket):
+    """Send the last 20 messages to a newly connected client."""
+    messages = fetch_last_20_messages()
+    for username, message, timestamp in messages:
+        formatted_message = f"{username}: {message}\n"
+        client_socket.sendall(formatted_message.encode('utf-8'))
+    client_socket.sendall(b'')  # Ensure end of messages
+
+def is_active_user(username):
+    """Check if the username is currently connected."""
+    for _, active_username in clients:
+        if active_username == username:
+            return True
+    return False
+
 def handle_connect(client_socket, username):
-    if is_username_taken(username):
+    if is_active_user(username):
+        # If the username is already connected, reject the connection.
         error_message = "ERROR: Username already taken."
         client_socket.sendall(error_message.encode('utf-8'))
         client_socket.close()
         return
 
     print(f"Client {client_socket.getpeername()} connected with username: {username}")
+
+    # Check if this is a rejoining user
+    if is_username_taken(username):
+        print(f"User {username} is rejoining.")
+    else:
+        # Add user to the database if it's a new user
+        create_user(username)
+
+    # Add client to the active clients list
     clients.append((client_socket, username))
 
-    # Add user to the database
-    create_user(username)
+    # Send the last 20 messages to the newly connected client
+    send_last_20_messages(client_socket)
 
-    # Notify other clients about the new connection
+    # Notify other clients about the connection/rejoin
     join_message = f"{username} has joined the chat."
     notify_clients(join_message)
 
