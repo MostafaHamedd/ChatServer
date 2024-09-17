@@ -4,31 +4,27 @@ import argparse
 import sys
 import os
 
-# Message types:
-# Chat: username: message
-# Connect: CONNECT username
-# Disconnect: DISCONNECT username
-# Error: ERROR: <details>
-
 def clear_console():
-    """Clear the screen."""
+    """Clear the console screen."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def display_messages(messages):
-    """Show chat messages and prompt."""
-    clear_console()
-    for message in messages:
-        sys.stdout.write(f"{message}\n")
+    """Display all chat messages and keep the input prompt."""
+    clear_console()  # Clear the screen to avoid old messages lingering
+    if messages:
+        for message in messages:
+            sys.stdout.write(f"{message}\n")
     sys.stdout.write('>> ')
-    sys.stdout.flush()
+    sys.stdout.flush()  # Ensure the prompt is shown right after the messages
 
 def receive_messages(sock, messages):
-    """Receive and display messages."""
+    """Receive messages from the server and display them."""
     while True:
         try:
             data = sock.recv(1024).decode('utf-8')
             if data:
                 messages.append(data)
+                # Display all messages including the new one
                 display_messages(messages)
             else:
                 break
@@ -51,19 +47,23 @@ def client(host, port, username):
     # Send CONNECT command
     client_socket.sendall(f"CONNECT {username}".encode('utf-8'))
 
+    # This will store all received messages
     messages = []
 
-    # Start receiving messages
+    # Start thread to receive messages from the server
     threading.Thread(target=receive_messages, args=(client_socket, messages), daemon=True).start()
 
+    # Display initial prompt
     display_messages(messages)
 
     while True:
         try:
+            # Get user input
             message = input().strip()
             if message:
-                # Send message
+                # Send the message to the server
                 client_socket.sendall(f"MSG {message}".encode('utf-8'))
+                # Add and display the sent message locally
                 messages.append(f"{username}: {message}")
                 display_messages(messages)
         except KeyboardInterrupt:
