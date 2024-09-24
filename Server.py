@@ -129,11 +129,15 @@ def handle_connect(client_socket, username):
 
 def handle_disconnect(client_socket, username):
     print(f"Client {client_socket.getpeername()} disconnected.")
-    if username:
-        clients.remove((client_socket, username))
-        update_user_disconnect(username)
-        leave_message = f"{username} has left the chat."
-        notify_clients(leave_message)
+    try:
+        if username:
+            clients.remove((client_socket, username))
+            update_user_disconnect(username)
+            leave_message = f"{username} has left the chat."
+            notify_clients(leave_message)
+    except Exception as e:
+        print(f"Error while handling disconnection: {e}")
+
 
 def handle_message(client_socket, username, message):
     # Directly use the received message without adding the username again
@@ -152,14 +156,13 @@ def server():
     print(f"Server running on {HOST}:{PORT}")
 
     socket_list = [server_socket]  # Initialize socket_list with the server socket
-    
+
     while True:
         try:
             read_sockets, _, _ = select.select(socket_list, [], [])
             for notified_socket in read_sockets:
                 if notified_socket == server_socket:
                     try:
-                        print("Here")
                         client_socket, client_address = server_socket.accept()
                         print(f"Client connected: {client_address}")
                         socket_list.append(client_socket)
@@ -173,15 +176,28 @@ def server():
                         print(f"Error accepting connection: {e}")
 
                 else:
-                    data = notified_socket.recv(1024).decode('utf-8')
-                    if data:
-                        for client_socket, username in clients:
-                            if notified_socket == client_socket:
-                                handle_message(client_socket, username, data)
-                    else:
+                    try:
+                        data = notified_socket.recv(1024).decode('utf-8')
+                        if data:
+                            for client_socket, username in clients:
+                                if notified_socket == client_socket:
+                                    handle_message(client_socket, username, data)
+                        else:
+                            # No data means the client has disconnected
+                            username = next((u for s, u in clients if s == notified_socket), None)
+                            handle_disconnect(notified_socket, username)
+                            # Remove the socket from the list
+                            if notified_socket in socket_list:
+                                socket_list.remove(notified_socket)
+
+                    except Exception as e:
+                        # If there's an error while receiving data, handle disconnect
                         username = next((u for s, u in clients if s == notified_socket), None)
                         handle_disconnect(notified_socket, username)
-                        socket_list.remove(notified_socket)
+                        # Remove the socket from the list
+                        if notified_socket in socket_list:
+                            socket_list.remove(notified_socket)
+
         except KeyboardInterrupt:
             print("Server shutting down.")
             break
@@ -189,6 +205,7 @@ def server():
             print(f"Server error: {e}")
 
     server_socket.close()
+
 
 
 if __name__ == "__main__":
