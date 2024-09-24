@@ -77,7 +77,10 @@ def is_username_taken(username):
 def notify_clients(message):
     """Send a notification message to all clients."""
     for client, _ in clients:
-        client.sendall(message.encode('utf-8'))
+        try:
+            client.sendall(message.encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending message to client: {e}")
 
 def fetch_last_20_messages():
     """Fetch the last 20 messages from the database."""
@@ -153,16 +156,22 @@ def server():
     while True:
         try:
             read_sockets, _, _ = select.select(socket_list, [], [])
-            
             for notified_socket in read_sockets:
                 if notified_socket == server_socket:
-                    client_socket, client_address = server_socket.accept()
-                    print(f"Client connected: {client_address}")
-                    socket_list.append(client_socket)
-                    data = client_socket.recv(1024).decode('utf-8')
-                    if data.startswith("CONNECT"):
-                        username = data[len("CONNECT "):]
-                        handle_connect(client_socket, username)
+                    try:
+                        print("Here")
+                        client_socket, client_address = server_socket.accept()
+                        print(f"Client connected: {client_address}")
+                        socket_list.append(client_socket)
+
+                        # Receive initial connection message from the client
+                        data = client_socket.recv(1024).decode('utf-8')
+                        if data.startswith("CONNECT"):
+                            username = data[len("CONNECT "):]
+                            handle_connect(client_socket, username)
+                    except Exception as e:
+                        print(f"Error accepting connection: {e}")
+
                 else:
                     data = notified_socket.recv(1024).decode('utf-8')
                     if data:
@@ -180,6 +189,7 @@ def server():
             print(f"Server error: {e}")
 
     server_socket.close()
+
 
 if __name__ == "__main__":
     server()

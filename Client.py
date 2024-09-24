@@ -33,7 +33,7 @@ def receive_messages(sock, messages):
 def client(host, port, username):
     """Run the chat client."""
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
+    try: 
         client_socket.connect((host, port))
     except ConnectionRefusedError:
         print(f"Failed to connect to {host}:{port}. Check if the server is running.")
