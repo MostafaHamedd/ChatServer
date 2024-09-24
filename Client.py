@@ -1,8 +1,8 @@
 import socket
-import threading
 import argparse
-import sys
 import os
+import sys
+import threading
 
 def clear_console():
     """Clear the console screen."""
@@ -12,8 +12,8 @@ def display_messages(messages):
     """Display all chat messages and keep the input prompt."""
     clear_console()  # Clear the screen before displaying messages
     for message in messages:
-        sys.stdout.write(f"{message}\n")
-    sys.stdout.write('>> ')
+        print(message)  # Print each message
+    sys.stdout.write('>> ')  # Show the input prompt at the end
     sys.stdout.flush()
 
 def receive_messages(sock, messages):
@@ -22,9 +22,7 @@ def receive_messages(sock, messages):
         try:
             data = sock.recv(1024).decode('utf-8')
             if data:
-                # Only append if the message is new
-                if data not in messages:
-                    messages.append(data)
+                messages.append(data)
                 display_messages(messages)
             else:
                 break
@@ -44,25 +42,28 @@ def client(host, port, username):
         print(f"Error connecting to server: {e}")
         return
 
-    # Send CONNECT command
-    client_socket.sendall(f"CONNECT {username}".encode('utf-8'))
-
     # This will store all received messages
     messages = []
 
-    # Start thread to receive messages from the server
+    # Start a separate thread to receive messages from the server
     threading.Thread(target=receive_messages, args=(client_socket, messages), daemon=True).start()
+
+    # Send the CONNECT command to the server
+    client_socket.sendall(f"CONNECT {username}".encode('utf-8'))
 
     while True:
         try:
+            # Prompt for user input
+            sys.stdout.write('>> ')
+            sys.stdout.flush()  # Ensure the prompt is displayed
+
             # Get user input
             message = input().strip()
             if message:
-                # Send the message to the server
-                client_socket.sendall(f"MSG {message}".encode('utf-8'))
+                # Send the message to the server, which already includes the username
+                client_socket.sendall(f"{username}: {message}".encode('utf-8'))
         except KeyboardInterrupt:
             print("\nClient shutting down.")
-            client_socket.sendall(f"DISCONNECT {username}".encode('utf-8'))
             break
         except Exception as e:
             print(f"Error sending message: {e}")
