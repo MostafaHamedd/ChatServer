@@ -4,9 +4,11 @@ import argparse
 import sys
 import os
 
+
 def clear_console():
     """Clear the console screen."""
     os.system('cls' if os.name == 'nt' else 'clear')
+
 
 def display_messages(messages):
     """Display all chat messages and keep the input prompt."""
@@ -16,21 +18,28 @@ def display_messages(messages):
     sys.stdout.write('>> ')
     sys.stdout.flush()
 
+
 def receive_messages(sock, messages):
     """Receive messages from the server and display them."""
     while True:
         try:
             data = sock.recv(1024).decode('utf-8')
             if data:
-                # Only append if the message is new
-                if data not in messages:
+                # Check if the message is a connection confirmation
+                if "CONNECTED" not in data:
+                    # Only append other messages to the list
                     messages.append(data)
-                display_messages(messages)
+                    display_messages(messages)
             else:
                 break
         except Exception as e:
             print(f"Error receiving message: {e}")
             break
+
+def setupChatView():
+    clear_console()  # Clear the console upon connection
+    sys.stdout.write('>> ')
+    sys.stdout.flush()
 
 def client(host, port, username):
     """Run the chat client."""
@@ -47,6 +56,10 @@ def client(host, port, username):
     # Send CONNECT command
     client_socket.sendall(f"CONNECT {username}".encode('utf-8'))
 
+    # Wait for a response from the server
+    response = client_socket.recv(1024).decode('utf-8').strip()
+
+
     # This will store all received messages
     messages = []
 
@@ -56,7 +69,7 @@ def client(host, port, username):
     while True:
         try:
             # Get user input
-            message = input().strip()
+            message = input('>> ').strip()
             if message:
                 # Send the message to the server
                 client_socket.sendall(f"MSG {message}".encode('utf-8'))
@@ -68,6 +81,7 @@ def client(host, port, username):
             print(f"Error sending message: {e}")
 
     client_socket.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Chat Client')

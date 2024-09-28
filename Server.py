@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Server settings
 HOST = '127.0.0.1'
-PORT = 42424
+PORT = 42425
 
 # List of connected clients
 clients = []  # (client_socket, username)
@@ -87,7 +87,11 @@ def is_username_taken(username):
 def notify_clients(message):
     """Send a notification message to all clients."""
     for client, _ in clients:
-        client.sendall(message.encode('utf-8'))
+        try:
+            client.sendall(message.encode('utf-8'))  # Ensure the message is sent no matter what
+        except Exception as e:
+            print(f"Error sending message to client: {e}")
+
 
 def fetch_last_20_messages():
     """Fetch the last 20 messages from the database."""
@@ -173,8 +177,13 @@ def handle_client(client_socket, client_address):
 
             if data.startswith("CONNECT"):
                 username = data[len("CONNECT "):]
-                handle_connect(client_socket, username)
-
+                if username_already_connected(username):
+                    client_socket.sendall("ERROR: Username already taken.".encode('utf-8'))
+                    break  # Disconnect the client
+                else:
+                    handle_connect(client_socket, username)
+                    client_socket.sendall("CONNECTED".encode('utf-8'))
+                    send_last_20_messages(client_socket)
             elif data.startswith("DISCONNECT"):
                 if username:
                     handle_disconnect(client_socket, username)
@@ -185,6 +194,10 @@ def handle_client(client_socket, client_address):
                     message = data[len("MSG "):]
                     handle_message(client_socket, username, message)
 
+            else:
+                client_socket.sendall("ERROR: Unknown protocol.".encode('utf-8'))
+                break  # Disconnect the client on unknown protocol
+
     except Exception as e:
         print(f"Error with client {client_address}: {e}")
 
@@ -192,6 +205,12 @@ def handle_client(client_socket, client_address):
         if username:
             print(f"Client {client_address} disconnected as {username}")
         client_socket.close()
+
+def username_already_connected(username):
+    """Check if a username is already connected."""
+    return any(user == username for _, user in clients)
+
+
 
 def server():
     # Set up server and create tables
@@ -219,4 +238,4 @@ def server():
     server_socket.close()
 
 if __name__ == "__main__":
-    server()
+ server()
