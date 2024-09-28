@@ -25,8 +25,11 @@ def receive_messages(sock, messages):
         try:
             data = sock.recv(1024).decode('utf-8')
             if data:
+                # Print the raw data received from the server
+              #  print(f"Raw data received: {data}")
+
                 # Check if the message is a connection confirmation
-                if "CONNECTED" not in data:
+                if not data.startswith("CONNECTED"):
                     # Only append other messages to the list
                     messages.append(data)
                     display_messages(messages)
@@ -35,6 +38,7 @@ def receive_messages(sock, messages):
         except Exception as e:
             print(f"Error receiving message: {e}")
             break
+
 
 def setupChatView():
     clear_console()  # Clear the console upon connection
@@ -57,7 +61,7 @@ def client(host, port, username):
     client_socket.sendall(f"CONNECT {username}".encode('utf-8'))
 
     # Wait for a response from the server
-    response = client_socket.recv(1024).decode('utf-8').strip()
+#    response = client_socket.recv(1024).decode('utf-8').strip()
 
 
     # This will store all received messages
