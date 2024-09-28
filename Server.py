@@ -134,6 +134,20 @@ def fetch_last_20_messages():
         print(f"Error fetching last 20 messages: {e}")
         return []
 
+def fetch_unread_messages(username):
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+    SELECT username, message, timestamp
+    FROM Messages
+    WHERE timestamp > (
+        SELECT disconnected_at FROM Users WHERE username = ?
+    )
+    ORDER BY timestamp ASC
+    ''', (username,))
+    messages = cursor.fetchall()
+    conn.close()
+    return messages
 
 def send_last_20_messages(client_socket):
     """Send the last 20 messages to a newly connected client."""
@@ -147,7 +161,7 @@ def send_last_20_messages(client_socket):
             # Print each message being sent to the client, including the client's address
             print(f"Sending message to {client_address}: {formatted_message.strip()} at {timestamp}")
             client_socket.sendall(formatted_message.encode('utf-8'))
-        client_socket.sendall(b'')  # Ensure end of messages
+
     except Exception as e:
         print(f"Error sending last 20 messages to {client_address}: {e}")
 
@@ -231,6 +245,7 @@ def handle_client(client_socket):
         return False
 
 def server():
+    clients = []
     try:
         create_tables()
 
@@ -253,22 +268,39 @@ def server():
                             client_socket, client_address = server_socket.accept()
                             client_socket.setblocking(False)
                             inputs.append(client_socket)
+                            clients.append(client_socket)  # Add to the client list
                             print(f"Client connected: {client_address}")
                         except Exception as e:
                             print(f"Error accepting new client: {e}")
                     else:
                         if not handle_client(s):
                             inputs.remove(s)
+                            if s in clients:
+                                clients.remove(s)
 
             except Exception as e:
                 print(f"Error in select loop: {e}")
 
     except KeyboardInterrupt:
-        print("Server shutting down.")
-    except Exception as e:
-        print(f"Server error: {e}")
+        print("\nServer shutting down. Notifying clients...")
+
+        # Notify all clients about the shutdown
+        shutdown_message = "SERVER_SHUTDOWN: The server is shutting down.\n"
+        for client_socket in clients:
+            try:
+                client_socket.sendall(shutdown_message.encode('utf-8'))
+                client_socket.close()
+            except Exception as e:
+                print(f"Error notifying client: {e}")
+
     finally:
+        print("Closing server socket...")
         server_socket.close()
+        # Optionally close remaining client sockets if not done already
+        for client_socket in inputs:
+            if client_socket != server_socket:
+                client_socket.close()
+
 
 if __name__ == "__main__":
     server()

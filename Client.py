@@ -23,7 +23,12 @@ def receive_messages(sock, messages):
     """Receive messages from the server and display them."""
     while True:
         try:
-            data = sock.recv(1024).decode('utf-8')
+            try:
+                data = sock.recv(1024).decode('utf-8')
+            except ConnectionResetError:
+                print("Server closed the connection.")
+                break
+
             if data:
                 # Print the raw data received from the server
               #  print(f"Raw data received: {data}")
