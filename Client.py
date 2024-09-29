@@ -1,6 +1,5 @@
 import socket
-import threading
-import argparse
+import select
 import sys
 import os
 
@@ -10,48 +9,20 @@ def clear_console():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-def display_messages(messages):
-    """Display all chat messages and keep the input prompt."""
+def display_messages(messages, current_input=''):
+    """Display all chat messages and keep the input prompt with the user's current typed input."""
     clear_console()  # Clear the screen before displaying messages
     for message in messages:
-        sys.stdout.write(f"{message}\n")
-    sys.stdout.write('>> ')
+        sys.stdout.write(f"{message.rstrip()}\n")  # Remove trailing newlines before adding one
+
+    # Re-display the current input
+    sys.stdout.write(f'>> {current_input}')
     sys.stdout.flush()
 
 
-def receive_messages(sock, messages):
-    """Receive messages from the server and display them."""
-    while True:
-        try:
-            try:
-                data = sock.recv(1024).decode('utf-8')
-            except ConnectionResetError:
-                print("Server closed the connection.")
-                break
-
-            if data:
-                # Print the raw data received from the server
-              #  print(f"Raw data received: {data}")
-
-                # Check if the message is a connection confirmation
-                if not data.startswith("CONNECTED"):
-                    # Only append other messages to the list
-                    messages.append(data)
-                    display_messages(messages)
-            else:
-                break
-        except Exception as e:
-            print(f"Error receiving message: {e}")
-            break
-
-
-def setupChatView():
-    clear_console()  # Clear the console upon connection
-    sys.stdout.write('>> ')
-    sys.stdout.flush()
 
 def client(host, port, username):
-    """Run the chat client."""
+
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         client_socket.connect((host, port))
@@ -65,34 +36,58 @@ def client(host, port, username):
     # Send CONNECT command
     client_socket.sendall(f"CONNECT {username}".encode('utf-8'))
 
-    # Wait for a response from the server
-#    response = client_socket.recv(1024).decode('utf-8').strip()
-
-
-    # This will store all received messages
+    # Store all received messages
     messages = []
 
-    # Start thread to receive messages from the server
-    threading.Thread(target=receive_messages, args=(client_socket, messages), daemon=True).start()
-
+    # Reference to the current input buffer
+    current_input = ''
+    global_input = ''
+    # Use select to monitor both the server socket and stdin (user input)
     while True:
         try:
-            # Get user input
-            message = input('>> ').strip()
-            if message:
-                # Send the message to the server
-                client_socket.sendall(f"MSG {message}".encode('utf-8'))
+
+            # `select` to wait for either socket or user input (stdin)
+            read_sockets, _, _ = select.select([client_socket, sys.stdin], [], [])
+
+            for sock in read_sockets:
+                print(global_input)
+                if sock == client_socket:
+                    # Receive messages from the server
+                    data = client_socket.recv(1024).decode('utf-8')
+                    if not data:
+                        # Server closed connection
+                        print("Connection closed by server.")
+                        return
+                    if not data.startswith("CONNECTED"):
+                        # Append the message and redisplay everything
+                        messages.append(data)
+                        display_messages(messages, current_input)
+
+                elif sock == sys.stdin:
+                    # Handle user input
+                    current_input = sys.stdin.readline().strip()  # Capture the user input
+                   # print("HENNAAAa" + current_input)
+
+                    # Send the message to the server if there's input
+                    if current_input:
+                        client_socket.sendall(f"MSG {current_input}".encode('utf-8'))
+                        current_input = ''  # Clear input after sending
+                        display_messages(messages)  # Redisplay messages after sending
+                    else:
+                     global_input = current_input
         except KeyboardInterrupt:
             print("\nClient shutting down.")
             client_socket.sendall(f"DISCONNECT {username}".encode('utf-8'))
             break
         except Exception as e:
-            print(f"Error sending message: {e}")
+            print(f"Error: {e}")
+            break
 
     client_socket.close()
 
 
 if __name__ == "__main__":
+    import argparse
     parser = argparse.ArgumentParser(description='Chat Client')
     parser.add_argument('username', type=str, help='Chat username')
     parser.add_argument('host', type=str, help='Server host')

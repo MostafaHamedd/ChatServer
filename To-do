@@ -1,6 +1,8 @@
 ** To do list **
 
-- Fix overlapping messages.  (IP)
-- Fix Spaces between messages
+- Fix overlapping messages.
+- Remove the use of threading in the client code (DONE)
+- USERNAME already taken error, doesn't check for active users (DONE)
+- Fix Spaces between messages (DONE)
 - Handle Unread Messages
 - Check for all kinds of edge cases
