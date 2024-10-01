@@ -1,8 +1,12 @@
 ** To do list **
 
-- Fix overlapping messages.
+- Fix overlapping messages.(IP)
 - Remove the use of threading in the client code (DONE)
 - USERNAME already taken error, doesn't check for active users (DONE)
 - Fix Spaces between messages (DONE)
-- Handle Unread Messages
-- Check for all kinds of edge cases
+- Handle Unread Messages (DONE)
+- Check for all kinds of edge cases (IP)
+- Remove CONNECTED AND JOINED THE CHAT  (DONE)
+
+
+- Start Part 2

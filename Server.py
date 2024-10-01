@@ -116,6 +116,98 @@ def notify_clients(message):
         except Exception as e:
             print(f"Error sending message to client: {e}")
 
+
+
+def fetch_unread_messages(username):
+    conn = connect_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+    SELECT username, message, timestamp
+    FROM Messages
+    WHERE timestamp > (
+        SELECT disconnected_at FROM Users WHERE username = ?
+    )
+    ORDER BY timestamp ASC
+    ''', (username,))
+    messages = cursor.fetchall()
+    conn.close()
+    return messages
+def fetch_last_20_read_messages(client_socket):
+    """Fetch the last 20 read messages (before the user's last disconnection) from the database."""
+    try:
+        conn = connect_db()
+        cursor = conn.cursor()
+
+        # Get the username of the client from the clients dictionary
+        username = clients.get(client_socket)
+
+        cursor.execute('''
+        SELECT username, message, timestamp
+        FROM Messages
+        WHERE timestamp <= (
+            SELECT disconnected_at FROM Users WHERE username = ?
+        )
+        ORDER BY timestamp DESC
+        LIMIT 20
+        ''', (username,))
+        messages = cursor.fetchall()
+        conn.close()
+        return messages[::-1]  # Reverse to show them in the correct order (oldest first)
+
+    except sqlite3.Error as e:
+        print(f"Error fetching last 20 read messages: {e}")
+        return []
+
+
+def send_unread_messages(client_socket):
+    """Send unread messages to the client."""
+    try:
+        # Get the username of the client from the clients dictionary
+        username = clients.get(client_socket)
+
+        if not username:
+            print("Error: No username associated with the client socket.")
+            return
+
+        # Fetch unread messages from the database
+        unread_messages = fetch_unread_messages(username)
+        print(unread_messages)
+        if unread_messages:
+            # Send a "New messages" notification first
+            client_socket.sendall("\033[92mNew messages\033[0m\n".encode('utf-8'))
+
+            # Send each unread message to the client
+            for msg_username, msg_content, msg_timestamp in unread_messages:
+                formatted_message = f"{msg_username}: {msg_content}\n"
+                print(f"Sending unread message to {username}: {formatted_message.strip()} at {msg_timestamp}")
+                client_socket.sendall(formatted_message.encode('utf-8'))
+
+
+    except Exception as e:
+        print(f"Error sending unread messages to {username}: {e}")
+
+
+def send_last_20_read_messages(client_socket):
+    """Send the last 20 read messages to a newly connected client."""
+    try:
+        # Get client's IP address and port from the socket
+        client_address = client_socket.getpeername()
+
+        # Fetch the messages using the client's socket
+        messages = fetch_last_20_read_messages(client_socket)
+        for msg_username, msg_content, msg_timestamp in messages:
+            formatted_message = f"{msg_username}: {msg_content}\n"
+            # Print each message being sent to the client, including the client's address
+            print(f"Sending message to {client_address}: {formatted_message.strip()} at {msg_timestamp}")
+            client_socket.sendall(formatted_message.encode('utf-8'))
+
+    except Exception as e:
+        print(f"Error sending last 20 read messages to {client_address}: {e}")
+
+
+    except Exception as e:
+        print(f"Error sending last 20 read messages to {client_address}: {e}")
+
 def fetch_last_20_messages():
     """Fetch the last 20 messages from the database."""
     try:
@@ -133,21 +225,6 @@ def fetch_last_20_messages():
     except sqlite3.Error as e:
         print(f"Error fetching last 20 messages: {e}")
         return []
-
-def fetch_unread_messages(username):
-    conn = connect_db()
-    cursor = conn.cursor()
-    cursor.execute('''
-    SELECT username, message, timestamp
-    FROM Messages
-    WHERE timestamp > (
-        SELECT disconnected_at FROM Users WHERE username = ?
-    )
-    ORDER BY timestamp ASC
-    ''', (username,))
-    messages = cursor.fetchall()
-    conn.close()
-    return messages
 
 def send_last_20_messages(client_socket):
     """Send the last 20 messages to a newly connected client."""
@@ -177,11 +254,13 @@ def handle_connect(client_socket, username):
 
         if is_username_taken(username):
             print(f"User {username} is rejoining.")
+
         else:
             create_user(username)
 
         clients[client_socket] = username
-        send_last_20_messages(client_socket)
+        send_last_20_read_messages(client_socket)
+        send_unread_messages(client_socket)
         notify_clients(f"{username} has joined the chat.")
         return True
     except Exception as e:
@@ -225,7 +304,8 @@ def handle_client(client_socket):
         if data.startswith("CONNECT"):
             username = data[len("CONNECT "):]
             if handle_connect(client_socket, username):
-                client_socket.sendall("CONNECTED".encode('utf-8'))
+                #client_socket.sendall("CONNECTED".encode('utf-8'))
+                return True
             else:
                 return False
         elif data.startswith("DISCONNECT"):
