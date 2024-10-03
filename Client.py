@@ -2,7 +2,8 @@ import socket
 import select
 import sys
 import os
-
+import termios
+import tty
 
 def clear_console():
     """Clear the console screen."""
@@ -11,6 +12,8 @@ def clear_console():
 
 def display_messages(messages, current_input=''):
     """Display all chat messages and keep the input prompt with the user's current typed input."""
+
+
     clear_console()  # Clear the screen before displaying messages
     for message in messages:
         sys.stdout.write(f"{message.rstrip()}\n")  # Remove trailing newlines before adding one
